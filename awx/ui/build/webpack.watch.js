@@ -26,13 +26,7 @@ const watch = {
                 test: /\.js$/,
                 enforce: 'pre',
                 exclude: /node_modules/,
-                loader: 'eslint-loader',
-                options: {
-                    failOnWarning: false,
-                    failOnError: false,
-                    emitError: false,
-                    emitWarning: false
-                }
+                loader: 'eslint-loader'
             }
         ]
     },
@@ -59,6 +53,7 @@ const watch = {
         host: '127.0.0.1',
         port: 3000,
         https: true,
+        clientLogLevel: 'none',
         proxy: {
             '/': {
                 target: TARGET,
