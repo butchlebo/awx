@@ -33,9 +33,9 @@ function JobsRun ($stateExtender, strings) {
                 return new Jobs('get', id)
                     .then(job => job.extend('job_events', {
                         pageCache: true,
-                        pageLimit: 2,
+                        pageLimit: 4,
                         params: {
-                            page_size: 1000,
+                            page_size: 100,
                             order_by: 'start_line'
                         },
                     }));
