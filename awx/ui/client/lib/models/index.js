@@ -14,7 +14,6 @@ import InventorySource from '~models/InventorySource';
 import Job from '~models/Job';
 import JobEvent from '~models/JobEvent';
 import JobTemplate from '~models/JobTemplate';
-import Jobs from '~models/Jobs';
 import Me from '~models/Me';
 import NotificationTemplate from '~models/NotificationTemplate';
 import Organization from '~models/Organization';
@@ -49,9 +48,7 @@ angular
     .service('JobEventModel', JobEvent)
     .service('JobModel', Job)
     .service('JobTemplateModel', JobTemplate)
-    .service('JobsModel', Jobs)
     .service('MeModel', Me)
-    .service('ModelsStrings', ModelsStrings)
     .service('NotificationTemplate', NotificationTemplate)
     .service('OrganizationModel', Organization)
     .service('ProjectModel', Project)
@@ -61,6 +58,7 @@ angular
     .service('UnifiedJobTemplateModel', UnifiedJobTemplate)
     .service('WorkflowJobModel', WorkflowJob)
     .service('WorkflowJobTemplateModel', WorkflowJobTemplate)
-    .service('WorkflowJobTemplateNodeModel', WorkflowJobTemplateNode);
+    .service('WorkflowJobTemplateNodeModel', WorkflowJobTemplateNode)
+    .service('ModelsStrings', ModelsStrings);
 
 export default MODULE_NAME;
