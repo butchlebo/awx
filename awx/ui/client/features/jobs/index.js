@@ -1,15 +1,17 @@
 import atLibModels from '~models';
 import atLibComponents from '~components';
 
-import JobsStrings from '~features/jobs/jobs.strings';
-import IndexController from '~features/jobs/index.controller';
+import Strings from '~features/jobs/jobs.strings';
+import Controller from '~features/jobs/index.controller';
+import PageService from '~features/jobs/page.service';
 
-const indexTemplate = require('~features/jobs/index.view.html');
+const Template = require('~features/jobs/index.view.html');
 
 const MODULE_NAME = 'at.features.jobs';
 const PAGE_CACHE = true;
 const PAGE_LIMIT = 3;
 const PAGE_SIZE = 100;
+const WS_PREFIX = 'ws';
 
 function resolveResource (Job, ProjectUpdate, AdHocCommand, SystemJob, WorkflowJob, $stateParams) {
     const { id, type } = $stateParams;
@@ -54,20 +56,20 @@ function resolveResource (Job, ProjectUpdate, AdHocCommand, SystemJob, WorkflowJ
                 type,
                 model,
                 related,
-                ws: getWebSocketResource(type),
+                ws: {
+                    namespace: `${WS_PREFIX}-${getWebSocketResource(type).key}-${id}`
+                },
                 page: {
                     cache: PAGE_CACHE,
                     size: PAGE_SIZE,
-                    pageLimit: PAGE_LIMIT,
-                    resultLimit: PAGE_SIZE * PAGE_LIMIT
+                    pageLimit: PAGE_LIMIT
                 }
             };
         });
 }
 
-function resolveWebSocket (SocketService, $stateParams) {
+function resolveWebSocketConnection (SocketService, $stateParams) {
     const { type, id } = $stateParams;
-    const prefix = 'ws';
     const resource = getWebSocketResource(type);
 
     let name;
@@ -85,8 +87,6 @@ function resolveWebSocket (SocketService, $stateParams) {
     };
 
     SocketService.addStateResolve(state, id);
-
-    return `${prefix}-${resource.key}-${id}`;
 }
 
 function resolveBreadcrumb (strings) {
@@ -137,8 +137,8 @@ function JobsRun ($stateRegistry) {
         },
         views: {
             '@': {
-                templateUrl: indexTemplate,
-                controller: IndexController,
+                templateUrl: Template,
+                controller: Controller,
                 controllerAs: 'vm'
             }
         },
@@ -153,13 +153,13 @@ function JobsRun ($stateRegistry) {
                 resolveResource
             ],
             ncyBreadcrumb: [
-                'JobsStrings',
+                'JobStrings',
                 resolveBreadcrumb
             ],
-            webSocketNamespace: [
+            webSocketConnection: [
                 'SocketService',
                 '$stateParams',
-                resolveWebSocket
+                resolveWebSocketConnection
             ]
         },
     };
@@ -174,8 +174,8 @@ angular
         atLibModels,
         atLibComponents
     ])
-    .controller('indexController', IndexController)
-    .service('JobsStrings', JobsStrings)
+    .service('JobStrings', Strings)
+    .service('JobPageService', PageService)
     .run(JobsRun);
 
 export default MODULE_NAME;
