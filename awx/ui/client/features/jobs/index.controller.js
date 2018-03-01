@@ -6,6 +6,7 @@ let ansi;
 let model;
 let resource;
 let page;
+let scroll;
 let container;
 let $timeout;
 let $sce;
@@ -65,7 +66,6 @@ function JobsIndexController (
     const html = $sce.trustAsHtml(parsed.html);
 
     page.init(resource);
-
     page.add({ number: 1, lines: parsed.lines });
 
     // Development helper(s)
@@ -73,11 +73,6 @@ function JobsIndexController (
 
     // Stdout Navigation
     vm.scroll = {
-        isLocked: false,
-        showBackToTop: false,
-        isActive: false,
-        position: 0,
-        time: 0,
         home: scrollHome,
         end: scrollEnd,
         down: scrollPageDown,
@@ -107,13 +102,11 @@ function JobsIndexController (
         table.html($sce.getTrustedHtml(html));
         $compile(table.contents())($scope);
 
-        container.scroll(onScroll);
+        scroll.init(container);
     });
 }
 
 function processWebSocketEvents (scope, data) {
-    let done;
-
     if (data.event === JOB_START) {
         vm.scroll.isActive = true;
         vm.stream.isActive = true;
@@ -182,7 +175,7 @@ function next () {
 
             return shift()
                 .then(() => append(events));
-        })
+        });
 }
 
 function previous () {
@@ -221,7 +214,9 @@ function append (events) {
             table.append(rows);
             $compile(rows.contents())($scope);
 
-            return resolve();
+            $scope.$apply(() => {
+                return resolve();
+            });
         });
     });
 }
@@ -239,7 +234,7 @@ function prepend (events) {
             $compile(rows.contents())($scope);
 
             $scope.$apply(() => {
-                return resolve(parsed.lines);
+                return resolve();
             });
         });
     });
@@ -540,13 +535,14 @@ function onScroll () {
 }
 
 function registerScrollEvent () {
-    vm.scroll.isActive = true;
+    pauseScrollEvents();
 
     const position = container[0].scrollTop;
     const height = container[0].offsetHeight;
     const downward = position > vm.scroll.position;
 
     let promise;
+    let scrollDirection;
 
     if (position !== 0 ) {
         vm.scroll.showBackToTop = true;
@@ -554,15 +550,13 @@ function registerScrollEvent () {
         vm.scroll.showBackToTop = false;
     }
 
-
-    console.log('downward', downward);
+    // console.log('downward', downward, position, vm.scroll.position);
     if (downward) {
         if (((height - position) / height) < SCROLL_THRESHOLD) {
             promise = next;
         }
     } else {
         if ((position / height) < SCROLL_THRESHOLD) {
-            console.log('previous');
             promise = previous;
         }
     }
@@ -576,16 +570,29 @@ function registerScrollEvent () {
     }
 
     return promise()
-        .then(() => {
-            console.log('done');
-            vm.scroll.isActive = false;
-            /*
-             *$timeout(() => {
-             *    vm.scroll.isActive = false;
-             *}, SCROLL_DELAY);
-             */
-        });
+        .then(() => resumeScrollEvents());
+}
 
+function updateScrollPosition (position) {
+    const top = container[0].scrollTop;
+    const height = container[0].scrollHeight;
+
+    if (position === 'end') {
+       container[0].scrollTop = height;
+       vm.scroll.position = height;
+    }
+
+    resumeScrollEvents();
+}
+
+function resumeScrollEvents () {
+    $timeout(() => {
+        vm.scroll.isActive = false;
+    }, SCROLL_DELAY);
+}
+
+function pauseScrollEvents () {
+    vm.scroll.isActive = true;
 }
 
 function scrollHome () {
@@ -598,7 +605,9 @@ function scrollHome () {
             return clear()
                 .then(() => prepend(events))
                 .then(() => {
-                    vm.scroll.isActive = false;
+                    $timeout(() => {
+                        vm.scroll.isActive = false;
+                    }, SCROLL_DELAY);
                 });
         });
 }
@@ -620,7 +629,7 @@ function scrollEnd () {
         return;
     }
 
-    vm.scroll.isActive = true;
+    pauseScrollEvents();
 
     return page.last()
         .then(events => {
@@ -630,12 +639,7 @@ function scrollEnd () {
 
             return clear()
                 .then(() => append(events))
-                .then(() => {
-                    const container = $(ELEMENT_CONTAINER)[0];
-
-                    container.scrollTop = container.scrollHeight;
-                    vm.scroll.isActive = false;
-                });
+                .then(() => updateScrollPosition('end'));
         });
 }
 
@@ -656,6 +660,7 @@ function scrollPageDown () {
 JobsIndexController.$inject = [
     'resource',
     'JobPageService',
+    'JobScrollService',
     '$sce',
     '$timeout',
     '$scope',
