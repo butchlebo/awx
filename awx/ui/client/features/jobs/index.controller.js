@@ -18,8 +18,6 @@ const record = {};
 
 let parent = null;
 
-const SCROLL_THRESHOLD = 0.1;
-const SCROLL_DELAY = 1000;
 const EVENT_START_TASK = 'playbook_on_task_start';
 const EVENT_START_PLAY = 'playbook_on_play_start';
 const EVENT_STATS_PLAY = 'playbook_on_stats';
@@ -42,6 +40,7 @@ const TIME_EVENTS = [
 function JobsIndexController (
     _resource_,
     _page_,
+    _scroll_,
     _$sce_,
     _$timeout_,
     _$scope_,
@@ -56,8 +55,10 @@ function JobsIndexController (
     $scope = _$scope_;
     $q = _$q_;
     resource = _resource_;
-    page = _page_;
     model = resource.model;
+
+    page = _page_;
+    scroll = _scroll_;
 
     ansi = new Ansi();
 
@@ -73,6 +74,7 @@ function JobsIndexController (
 
     // Stdout Navigation
     vm.scroll = {
+        showBackToTop: false,
         home: scrollHome,
         end: scrollEnd,
         down: scrollPageDown,
@@ -102,26 +104,29 @@ function JobsIndexController (
         table.html($sce.getTrustedHtml(html));
         $compile(table.contents())($scope);
 
-        scroll.init(container);
+        scroll.init(container, {
+            isAtRest: scrollIsAtRest,
+            previous,
+            next
+        });
     });
 }
 
 function processWebSocketEvents (scope, data) {
     if (data.event === JOB_START) {
-        vm.scroll.isActive = true;
         vm.stream.isActive = true;
-        vm.scroll.isLocked = true;
+        scroll.lock();
     } else if (data.event === JOB_END) {
         vm.stream.isActive = false;
     }
 
     const pageAdded = page.addToBuffer(data);
 
-    if (pageAdded && !vm.scroll.isLocked) {
+    if (pageAdded && !scroll.isLocked()) {
         vm.stream.isPaused = true;
     }
 
-    if (vm.stream.isPaused && vm.scroll.isLocked) {
+    if (vm.stream.isPaused && scroll.isLocked()) {
         vm.stream.isPaused = false;
     }
 
@@ -140,9 +145,8 @@ function render (events) {
     return shift()
         .then(() => append(events))
         .then(() => {
-            if (vm.scroll.isLocked) {
-                const height = container[0].scrollHeight;
-                container[0].scrollTop = height;
+            if (scroll.isLocked()) {
+                scroll.setScrollPosition(scroll.getScrollHeight());
             }
 
             if (!vm.stream.isActive) {
@@ -153,8 +157,8 @@ function render (events) {
                 }
 
                 vm.stream.isRendering = false;
-                vm.scroll.isLocked = false;
-                vm.scroll.isActive = false;
+
+                scroll.unlock();
             } else {
                 vm.stream.isRendering = false;
             }
@@ -163,6 +167,12 @@ function render (events) {
 
 function devClear () {
     page.init(resource);
+    scroll.init(container, {
+        isAtRest: scrollIsAtRest,
+        previous,
+        next
+    });
+
     clear();
 }
 
@@ -179,9 +189,8 @@ function next () {
 }
 
 function previous () {
-    const container = $(ELEMENT_CONTAINER)[0];
-
-    let previousHeight;
+    let initialPosition = scroll.getScrollPosition();
+    let postPopHeight;
 
     return page.previous()
         .then(events => {
@@ -191,13 +200,14 @@ function previous () {
 
             return pop()
                 .then(() => {
-                    previousHeight = container.scrollHeight;
+                    postPopHeight = scroll.getScrollHeight();
 
                     return prepend(events);
                 })
                 .then(()  => {
-                    const currentHeight = container.scrollHeight;
-                    container.scrollTop = currentHeight - previousHeight;
+                    const currentHeight = scroll.getScrollHeight();
+
+                    scroll.setScrollPosition(currentHeight - postPopHeight + initialPosition);
                 });
         });
 }
@@ -522,80 +532,9 @@ function toggle (uuid, menu) {
     }
 }
 
-function onScroll () {
-    if (vm.scroll.isActive) {
-        return;
-    }
-
-    if (vm.scroll.register) {
-        $timeout.cancel(vm.scroll.register);
-    }
-
-    vm.scroll.register = $timeout(registerScrollEvent, SCROLL_DELAY);
-}
-
-function registerScrollEvent () {
-    pauseScrollEvents();
-
-    const position = container[0].scrollTop;
-    const height = container[0].offsetHeight;
-    const downward = position > vm.scroll.position;
-
-    let promise;
-    let scrollDirection;
-
-    if (position !== 0 ) {
-        vm.scroll.showBackToTop = true;
-    } else {
-        vm.scroll.showBackToTop = false;
-    }
-
-    // console.log('downward', downward, position, vm.scroll.position);
-    if (downward) {
-        if (((height - position) / height) < SCROLL_THRESHOLD) {
-            promise = next;
-        }
-    } else {
-        if ((position / height) < SCROLL_THRESHOLD) {
-            promise = previous;
-        }
-    }
-
-    vm.scroll.position = position;
-
-    if (!promise) {
-        vm.scroll.isActive = false;
-
-        return $q.resolve();
-    }
-
-    return promise()
-        .then(() => resumeScrollEvents());
-}
-
-function updateScrollPosition (position) {
-    const top = container[0].scrollTop;
-    const height = container[0].scrollHeight;
-
-    if (position === 'end') {
-       container[0].scrollTop = height;
-       vm.scroll.position = height;
-    }
-
-    resumeScrollEvents();
-}
-
-function resumeScrollEvents () {
-    $timeout(() => {
-        vm.scroll.isActive = false;
-    }, SCROLL_DELAY);
-}
-
-function pauseScrollEvents () {
-    vm.scroll.isActive = true;
-}
-
 function scrollHome () {
+    scroll.pause();
+
     return page.first()
         .then(events => {
             if (!events) {
@@ -605,31 +544,26 @@ function scrollHome () {
             return clear()
                 .then(() => prepend(events))
                 .then(() => {
-                    $timeout(() => {
-                        vm.scroll.isActive = false;
-                    }, SCROLL_DELAY);
+                    scroll.setScrollPosition(0);
+                    scroll.resume();
                 });
         });
 }
 
 function scrollEnd () {
-    if (vm.scroll.isLocked) {
+    if (scroll.isLocked()) {
         page.bookmark();
-
-        vm.scroll.isLocked = false;
-        vm.scroll.isActive = false;
+        scroll.unlock();
 
         return;
-    } else if (!vm.scroll.isLocked && vm.stream.isActive) {
+    } else if (!scroll.isLocked() && vm.stream.isActive) {
         page.bookmark();
-
-        vm.scroll.isActive = true;
-        vm.scroll.isLocked = true;
+        scroll.lock();
 
         return;
     }
 
-    pauseScrollEvents();
+    scroll.pause();
 
     return page.last()
         .then(events => {
@@ -639,22 +573,23 @@ function scrollEnd () {
 
             return clear()
                 .then(() => append(events))
-                .then(() => updateScrollPosition('end'));
+                .then(() => {
+                    scroll.setScrollPosition(scroll.getScrollHeight());
+                    scroll.resume();
+                });
         });
 }
 
 function scrollPageUp () {
-    const container = $(ELEMENT_CONTAINER)[0];
-    const jump = container.scrollTop - container.offsetHeight;
-
-    container.scrollTop = jump;
+    scroll.pageUp();
 }
 
 function scrollPageDown () {
-    const container = $(ELEMENT_CONTAINER)[0];
-    const jump = container.scrollTop + container.offsetHeight;
+    scroll.pageDown();
+}
 
-    container.scrollTop = jump;
+function scrollIsAtRest (isAtRest) {
+    vm.scroll.showBackToTop = !isAtRest;
 }
 
 JobsIndexController.$inject = [

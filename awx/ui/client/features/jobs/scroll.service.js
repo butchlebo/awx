@@ -1,26 +1,29 @@
-const SCROLL_DELAY = 250;
+const DELAY = 100;
+const THRESHOLD = 0.1;
 
 function JobScrollService ($q, $timeout) {
     this.init = (el, hooks) => {
         this.el = el;
         this.timer = null;
         this.position = 0;
-        this.isLocked = false;
-        this.isPaused = false;
-        this.isAtTop = true;
 
         this.hooks = {
-            isAtTop: hooks.isAtTop,
+            isAtRest: hooks.isAtRest,
             next: hooks.next,
-            previous: hooks.previous,
+            previous: hooks.previous
+        };
 
+        this.state = {
+            locked: false,
+            paused: false,
+            top: true
         };
 
         this.el.scroll(this.listen);
     };
 
     this.listen = () => {
-        if (this.isPaused) {
+        if (this.isPaused()) {
             return;
         }
 
@@ -28,55 +31,28 @@ function JobScrollService ($q, $timeout) {
             $timeout.cancel(this.timer);
         }
 
-        this.timer = $timeout(this.register, SCROLL_DELAY);
-    };
-
-    this.toggleAtTopFlag = (position) => {
-        if (position === 0 && !this.isAtTop) {
-            this.isAtTop = true;
-            this.hooks.isAtTop(true);
-        } else if (position > 0 && this.isAtTop) {
-            this.isAtTop = false;
-            this.hooks.isAtTop(false);
-        }
-
-        this.isAtTop = !this.isAtTop;
+        this.timer = $timeout(this.register, DELAY);
     };
 
     this.register = () => {
         this.pause();
 
-        const position = this.el[0].scrollTop;
-        const height = this.el[0].offsetHeight;
-
+        const height = this.getScrollHeight();
+        const position = this.getScrollPosition();
         const downward = position > this.position;
 
         let promise;
         let scrollDirection;
 
-        // Use hook to report backtotop
-        /*
-         *if (position !== 0 ) {
-         *    vm.scroll.showBackToTop = true;
-         *} else {
-         *    vm.scroll.showBackToTop = false;
-         *}
-         */
-
-        console.log('downward', downward, position, vm.scroll.position);
-        if (downward) {
-            if (((height - position) / height) < SCROLL_THRESHOLD) {
-                promise = next;
-            }
-        } else {
-            if ((position / height) < SCROLL_THRESHOLD) {
-                promise = previous;
-            }
+        if (downward && this.isBeyondThreshold(downward, position)) {
+            promise = this.hooks.next;
+        } else if (!downward && this.isBeyondThreshold(downward, position)) {
+            promise = this.hooks.previous;
         }
 
-        this.position = position;
-
         if (!promise) {
+            this.position = position;
+            this.isAtRest(this.position);
             this.resume();
 
             return $q.resolve();
@@ -84,41 +60,105 @@ function JobScrollService ($q, $timeout) {
 
         return promise()
             .then(() => {
-                this.pause();
+                this.position = this.getScrollPosition();
+                this.isAtRest(this.position);
+
+                this.resume();
             });
     };
 
-    this.home = () => {
+    this.isBeyondThreshold = (downward, current) => {
+         const previous = this.position;
+         const height = this.getScrollHeight();
 
-    };
+         if (downward) {
+            current += this.getViewableHeight();
 
-    this.end = () => {
+            if (current >= height || ((height - current) / height) < THRESHOLD) {
+                return true;
+            }
+        } else {
+            if (current <= 0 || (current / height) < THRESHOLD) {
+                return true;
+            }
+        }
 
+        return false;
     };
 
     this.pageUp = () => {
+        const top = this.getScrollPosition();
+        const height = this.getViewableHeight();
 
+        this.setScrollPosition(top - height);
     };
 
     this.pageDown = () => {
+        const top = this.getScrollPosition();
+        const height = this.getViewableHeight();
 
+        this.setScrollPosition(top + height);
+    };
+
+    this.getScrollHeight = () => {
+        return this.el[0].scrollHeight;
+    };
+
+    this.getViewableHeight = () => {
+        return this.el[0].offsetHeight;
+    };
+
+    this.getScrollPosition = (includeScrollBarHeight) => {
+        return this.el[0].scrollTop;
+    };
+
+    this.setScrollPosition = position => {
+        this.position = position;
+        this.el[0].scrollTop = position;
+        this.isAtRest(this.position);
+    };
+
+    this.isAtRest = position => {
+        if (position === undefined) {
+            return this.state.top;
+        }
+
+        if (position === 0 && !this.state.top) {
+            this.state.top = true;
+            this.hooks.isAtRest(true);
+        } else if (position > 0 && this.state.top) {
+            this.state.top = false;
+            this.hooks.isAtRest(false);
+        }
     };
 
     this.resume = () => {
-        this.isPaused = false;
+        this.state.paused = false;
     };
 
     this.pause = () => {
-        this.isPaused = true;
+        this.state.paused = true;
+    };
+
+    this.isPaused = () => {
+        return this.state.paused;
     };
 
     this.lock = () => {
-
+        this.state.locked = true;
+        this.state.paused = true;
     };
 
     this.unlock = () => {
+        this.state.locked = false;
+        this.state.paused = false;
+    };
 
+    this.isLocked = () => {
+        return this.state.locked;
     };
 }
 
 JobScrollService.$inject = ['$q', '$timeout'];
+
+export default JobScrollService;
