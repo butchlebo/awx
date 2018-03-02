@@ -4,7 +4,9 @@ import atLibComponents from '~components';
 import Strings from '~features/jobs/jobs.strings';
 import Controller from '~features/jobs/index.controller';
 import PageService from '~features/jobs/page.service';
+import RenderService from '~features/jobs/render.service';
 import ScrollService from '~features/jobs/scroll.service';
+import StreamService from '~features/jobs/stream.service';
 
 const Template = require('~features/jobs/index.view.html');
 
@@ -177,7 +179,9 @@ angular
     ])
     .service('JobStrings', Strings)
     .service('JobPageService', PageService)
+    .service('JobRenderService', RenderService)
     .service('JobScrollService', ScrollService)
+    .service('JobStreamService', StreamService)
     .run(JobsRun);
 
 export default MODULE_NAME;

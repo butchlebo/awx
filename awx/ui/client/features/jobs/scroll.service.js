@@ -1,11 +1,16 @@
+const ELEMENT_CONTAINER = '.at-Stdout-container';
 const DELAY = 100;
 const THRESHOLD = 0.1;
 
 function JobScrollService ($q, $timeout) {
-    this.init = (el, hooks) => {
-        this.el = el;
+    this.init = (hooks) => {
+        this.el = $(ELEMENT_CONTAINER);
         this.timer = null;
-        this.position = 0;
+
+        this.position = {
+            previous: 0,
+            current: 0
+        };
 
         this.hooks = {
             isAtRest: hooks.isAtRest,
@@ -38,21 +43,20 @@ function JobScrollService ($q, $timeout) {
         this.pause();
 
         const height = this.getScrollHeight();
-        const position = this.getScrollPosition();
-        const downward = position > this.position;
+        const current = this.getScrollPosition();
+        const downward = current > this.position.previous;
 
         let promise;
-        let scrollDirection;
 
-        if (downward && this.isBeyondThreshold(downward, position)) {
+        if (downward && this.isBeyondThreshold(downward, current)) {
             promise = this.hooks.next;
-        } else if (!downward && this.isBeyondThreshold(downward, position)) {
+        } else if (!downward && this.isBeyondThreshold(downward, current)) {
             promise = this.hooks.previous;
         }
 
         if (!promise) {
-            this.position = position;
-            this.isAtRest(this.position);
+            this.setScrollPosition(current);
+            this.isAtRest();
             this.resume();
 
             return $q.resolve();
@@ -60,15 +64,14 @@ function JobScrollService ($q, $timeout) {
 
         return promise()
             .then(() => {
-                this.position = this.getScrollPosition();
-                this.isAtRest(this.position);
-
+                this.setScrollPosition(this.getScrollPosition());
+                this.isAtRest();
                 this.resume();
             });
     };
 
     this.isBeyondThreshold = (downward, current) => {
-         const previous = this.position;
+         const previous = this.position.previous;
          const height = this.getScrollHeight();
 
          if (downward) {
@@ -87,6 +90,10 @@ function JobScrollService ($q, $timeout) {
     };
 
     this.pageUp = () => {
+        if (this.isPaused()) {
+            return;
+        }
+
         const top = this.getScrollPosition();
         const height = this.getViewableHeight();
 
@@ -94,6 +101,10 @@ function JobScrollService ($q, $timeout) {
     };
 
     this.pageDown = () => {
+        if (this.isPaused()) {
+            return;
+        }
+
         const top = this.getScrollPosition();
         const height = this.getViewableHeight();
 
@@ -108,25 +119,22 @@ function JobScrollService ($q, $timeout) {
         return this.el[0].offsetHeight;
     };
 
-    this.getScrollPosition = (includeScrollBarHeight) => {
+    this.getScrollPosition = () => {
         return this.el[0].scrollTop;
     };
 
     this.setScrollPosition = position => {
-        this.position = position;
+        this.position.previous = this.position.current;
+        this.position.current = position;
         this.el[0].scrollTop = position;
-        this.isAtRest(this.position);
+        this.isAtRest();
     };
 
-    this.isAtRest = position => {
-        if (position === undefined) {
-            return this.state.top;
-        }
-
-        if (position === 0 && !this.state.top) {
+    this.isAtRest = () => {
+        if (this.position.current === 0 && !this.state.top) {
             this.state.top = true;
             this.hooks.isAtRest(true);
-        } else if (position > 0 && this.state.top) {
+        } else if (this.position.current > 0 && this.state.top) {
             this.state.top = false;
             this.hooks.isAtRest(false);
         }
