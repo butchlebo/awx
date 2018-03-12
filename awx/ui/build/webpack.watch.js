@@ -54,21 +54,31 @@ const watch = {
         publicPath: '/static/',
         host: '127.0.0.1',
         port: 3000,
-        https: true,
         clientLogLevel: 'none',
-        proxy: {
-            '/': {
-                target: TARGET,
-                secure: false,
-                ws: false,
-                bypass: req => req.originalUrl.includes('hot-update.json')
-            },
-            '/websocket': {
-                target: TARGET,
-                secure: false,
-                ws: true
+        proxy: [{
+            context: (pathname, req) => !(pathname === '/api/login/' && req.method === 'POST'),
+            target: TARGET,
+            secure: false,
+            ws: false,
+            bypass: req => req.originalUrl.includes('hot-update.json')
+        },
+        {
+            context: '/api/login/',
+            target: TARGET,
+            secure: false,
+            ws: false,
+            headers: {
+                Host: `localhost:${TARGET_PORT}`,
+                Origin: TARGET,
+                Referer: `${TARGET}/`
             }
-        }
+        },
+        {
+            context: '/websocket',
+            target: TARGET,
+            secure: false,
+            ws: true
+        }]
     }
 };
 
