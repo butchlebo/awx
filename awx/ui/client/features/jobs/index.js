@@ -8,8 +8,9 @@ import RenderService from '~features/jobs/render.service';
 import ScrollService from '~features/jobs/scroll.service';
 import StreamService from '~features/jobs/stream.service';
 
-import DetailsDirective from '~features/jobs/details.directive.js';
+import DetailsDirective from '~features/jobs/details.directive';
 import SearchKeyDirective from '~features/jobs/search-key.directive';
+import StatusDirective from '~features/jobs/status.directive';
 
 const Template = require('~features/jobs/index.view.html');
 
@@ -67,13 +68,21 @@ function resolveResource (
 
     Wait('start');
     return new Resource(['get', 'options'], [id, id])
-        .then(model => Promise.all([
-            model.extend('labels'),
-            model.extend(related, config)
-        ]))
-        .then(([ model ]) => ({
+        .then(model => {
+            const promises = [model.getStats()];
+
+            if (model.has('related.labels')) {
+                promises.push(model.extend('labels'));
+            }
+
+            promises.push(model.extend(related, config));
+
+            return Promise.all(promises);
+        })
+        .then(([stats, model]) => ({
             id,
             type,
+            stats,
             model,
             related,
             ws: {
@@ -202,6 +211,7 @@ angular
     .service('JobStreamService', StreamService)
     .directive('atDetails', DetailsDirective)
     .directive('atSearchKey', SearchKeyDirective)
+    .directive('atStatus', StatusDirective)
     .run(JobsRun);
 
 export default MODULE_NAME;
