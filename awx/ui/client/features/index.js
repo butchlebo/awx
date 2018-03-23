@@ -17,7 +17,7 @@ angular.module(MODULE_NAME, [
     atFeaturesApplications,
     atFeaturesCredentials,
     atFeaturesTemplates,
-    atFeaturesUsers
+    atFeaturesUsers,
     atFeaturesJobs,
     atFeaturesTemplates
 ]);

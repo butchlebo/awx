@@ -10,7 +10,7 @@ import StreamService from '~features/jobs/stream.service';
 
 import DetailsDirective from '~features/jobs/details.directive';
 import SearchKeyDirective from '~features/jobs/search-key.directive';
-import StatusDirective from '~features/jobs/status.directive';
+import StatsDirective from '~features/jobs/stats.directive';
 
 const Template = require('~features/jobs/index.view.html');
 
@@ -30,7 +30,7 @@ function resolveResource (
     qs,
     Wait
 ) {
-    const { id, type, job_event_search } = $stateParams;
+    const { id, type, job_event_search } = $stateParams; // eslint-disable-line camelcase
 
     let Resource;
     let related = 'events';
@@ -60,7 +60,7 @@ function resolveResource (
     const params = { page_size: PAGE_SIZE, order_by: 'start_line' };
     const config = { pageCache: PAGE_CACHE, pageLimit: PAGE_LIMIT, params };
 
-    if (job_event_search) {
+    if (job_event_search) { // eslint-disable-line camelcase
         const queryParams = qs.encodeQuerysetObject(qs.decodeArr(job_event_search));
 
         Object.assign(config.params, queryParams);
@@ -211,7 +211,7 @@ angular
     .service('JobStreamService', StreamService)
     .directive('atDetails', DetailsDirective)
     .directive('atSearchKey', SearchKeyDirective)
-    .directive('atStatus', StatusDirective)
+    .directive('atStats', StatsDirective)
     .run(JobsRun);
 
 export default MODULE_NAME;
